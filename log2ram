@@ -8,6 +8,7 @@ fi
 
 LOG_NAME='log2ram.log'
 NO_RSYNC=${USE_RSYNC#true}
+NO_RSYNC_VERBOSE=${RSYNC_VERBOSE#true}
 NOTIFICATION_COMMAND=${NOTIFICATION_COMMAND:=mail -s "Log2Ram Error on $HOSTNAME" root}
 NOTIFICATION=${NOTIFICATION:=true}
 
@@ -44,9 +45,12 @@ sync_to_disk() {
         optional_params+=("--include=journal/*/*@*.journal")
         optional_params+=("--exclude=journal/*/*")
     fi
+    if [ -z "${NO_RSYNC_VERBOSE}" ]; then
+        optional_params+=("-v")
+    fi
 
     if [ -z "${NO_RSYNC}" ] && [ -x "$(command -v rsync)" ]; then
-        rsync -aAXv --sparse --inplace --no-whole-file --delete-after "${optional_params[@]}" "$RAM_LOG"/ "$HDD_LOG"/ 2>&1 |
+        rsync -aAX --sparse --inplace --no-whole-file --delete-after "${optional_params[@]}" "$RAM_LOG"/ "$HDD_LOG"/ 2>&1 |
             tee -a "$LOG2RAM_LOG"
     else
         cp -rfup --sparse=always "$RAM_LOG"/ -T "$HDD_LOG"/ 2>&1 | tee -a "$LOG2RAM_LOG"
@@ -74,8 +78,14 @@ sync_from_disk() {
         exit 1
     fi
 
+    optional_params=()
+
+    if [ -z "${NO_RSYNC_VERBOSE}" ]; then
+        optional_params+=("-v")
+    fi
+
     if [ -z "${NO_RSYNC}" ] && [ -x "$(command -v rsync)" ]; then
-        rsync -aAXv --sparse --inplace --no-whole-file --delete-after "$HDD_LOG"/ "$RAM_LOG"/ 2>&1 | tee -a "$LOG2RAM_LOG"
+        rsync -aAX --sparse --inplace --whole-file --delete-after --no-checksum "${optional_params[@]}" "$HDD_LOG"/ "$RAM_LOG"/ 2>&1 | tee -a "$LOG2RAM_LOG"
     else
         cp -rfup --sparse=always "$HDD_LOG"/ -T "$RAM_LOG"/ 2>&1 | tee -a "$LOG2RAM_LOG"
     fi
