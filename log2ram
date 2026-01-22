@@ -143,12 +143,35 @@ start)
         mount --make-private "$HDD_LOG"/
         wait_for "$HDD_LOG"
 
+        mount_opts=()
+        mount_opts+=(nosuid)
+        mount_opts+=(noatime)
+        mount_opts+=(nodev)
+        execopt=
+        for x in $EXEC_MOUNTOPT; do
+            if [ "$x" == "$i" ]; then
+                execopt=true
+                break;
+            fi
+        done
+        if [ -z "$execopt" ]; then
+            mount_opts+=(noexec)
+        fi
+
         if [ "$ZL2R" = true ]; then
             create_zram_log_drive
-            mount -t ext4 -o nosuid,noexec,noatime,nodev,user=log2ram "/dev/zram${RAM_DEV}" "$RAM_LOG"/
+            fstype=ext4
+            dev_point="/dev/zram${RAM_DEV}"
+            mount_opts+=("user=log2ram")
         else
-            mount -t tmpfs -o "nosuid,noexec,noatime,nodev,mode=0755,size=${SIZE}" log2ram "$RAM_LOG"/
+            fstype=tmpfs
+            dev_point=log2ram
+            mount_opts+=("mode=0755")
+            mount_opts+=("size=${SIZE}")
         fi
+        _opts=$(IFS=,; echo "${mount_opts[*]}")
+        mount -t "$fstype" -o "$_opts" "$dev_point" "$RAM_LOG"/
+
         wait_for "$RAM_LOG"
         sync_from_disk
     done
